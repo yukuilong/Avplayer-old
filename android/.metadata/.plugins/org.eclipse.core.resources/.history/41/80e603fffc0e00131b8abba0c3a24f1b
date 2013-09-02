@@ -1,0 +1,106 @@
+package org.avplayer.avplayer;
+
+import org.avplayer.avplayer.video.AndroidVideoWindowImpl;
+
+import android.opengl.GLSurfaceView;
+import android.os.Bundle;
+import android.app.Activity;
+import android.content.Intent;
+import android.util.Log;
+import android.view.KeyEvent;
+import android.view.Menu;
+
+public class AvplayerActivity extends Activity {
+	
+	// 打开媒体类型.
+	static int MEDIA_TYPE_FILE  = 0;
+	static int MEDIA_TYPE_BT    = 1;
+	static int MEDIA_TYPE_HTTP  = 2;
+	static int  MEDIA_TYPE_RTSP = 3;
+	static int  MEDIA_TYPE_YK   = 4;
+
+	// 渲染模式.
+	static int  RENDER_ANDROID_OGL = 0;
+
+	AndroidVideoWindowImpl m_window;
+	Thread m_sThread;
+	static {
+ 		
+ 		//ffmpeg
+ 		loadOptionalLibrary("avutil-2.0");
+ 		loadOptionalLibrary("avcodec-2.0");
+ 		loadOptionalLibrary("avformat-2.0");
+ 		loadOptionalLibrary("swscale-2.0");
+ 		loadOptionalLibrary("swresample-2.0");
+  
+ 		// Main library
+ 		System.loadLibrary("avplayer");
+ 	}
+	
+	@Override
+	protected void onCreate(Bundle savedInstanceState) {
+		super.onCreate(savedInstanceState);
+		setContentView(R.layout.activity_avplayer);
+		
+		Log.v("java","onCreate");
+		GLSurfaceView view = (GLSurfaceView) findViewById(R.id.video_surface);
+		view.setZOrderOnTop(false);
+	
+		m_window = new AndroidVideoWindowImpl(view,null);
+		m_window.init();
+		
+		Intent intent = getIntent();
+		String filename = intent.getDataString();
+		if(filename != null){
+		
+			filename = filename.substring(7);
+			AvplayerNative.AvplayInit();
+			AvplayerNative.AvplaySetWindowHandle(m_window);
+			AvplayerNative.AvplayOpen(filename, MEDIA_TYPE_FILE, RENDER_ANDROID_OGL);
+		
+			m_sThread = new Thread() {
+				public void run() {
+					AvplayerNative.AvpalyPlay(0,0);
+					AvplayerNative.AvplayWaitForCompletion();
+					AvplayerNative.AvplayClose();
+				};
+			};
+		
+		
+			/* start */
+			m_sThread.start();
+		}
+	}
+	
+	@Override
+	protected void onDestroy(){
+		super.onDestroy();
+		AvplayerNative.AvplayClose();
+		Log.v("java","AvplayClose");
+	}
+	
+	@Override
+	public boolean onCreateOptionsMenu(Menu menu) {
+		// Inflate the menu; this adds items to the action bar if it is present.
+		getMenuInflater().inflate(R.menu.activity_avplayer, menu);
+		return true;
+	}
+	
+	@Override
+	public boolean onKeyDown(int keyCode,KeyEvent event){
+		
+		if(keyCode == event.KEYCODE_BACK){
+			
+		}
+		return super.onKeyDown(keyCode, event);
+	}
+	
+	private static void loadOptionalLibrary(String s) {
+		try {
+			System.loadLibrary(s);
+		} catch (Throwable e) {
+			Log.w("Unable to load optional library lib", s);
+		}
+	}
+
+}
